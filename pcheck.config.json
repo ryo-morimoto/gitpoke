@@ -1,0 +1,34 @@
+{
+  "$schema": "./pcheck.schema.json",
+  "include": [
+    "**/*.md",
+    "src/**/*",
+    "tests/**/*"
+  ],
+  "exclude": [
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    "coverage/**",
+    "*.min.js",
+    ".git/**"
+  ],
+  "code": {
+    "enabled": true,
+    "patterns": [
+      "TODO",
+      "FIXME",
+      "HACK",
+      "NOTE"
+    ],
+    "includeTests": false
+  },
+  "display": {
+    "showLineNumbers": true,
+    "groupByFile": true
+  },
+  "output": {
+    "format": "tree",
+    "colors": true
+  }
+}
