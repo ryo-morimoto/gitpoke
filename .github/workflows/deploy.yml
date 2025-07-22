@@ -1,0 +1,155 @@
+# GitHub Actions デプロイ設定
+#
+# このワークフローは以下を実行：
+# - Dockerイメージのビルド
+# - Google Container Registry (GCR) へのプッシュ
+# - Cloud Runへのデプロイ
+# - ステージング環境（mainブランチ）と本番環境（タグ）の自動デプロイ
+
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+
+env:
+  # GCPプロジェクト設定
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: asia-northeast1
+  
+  # サービス名
+  SERVICE_NAME: gitpoke
+  
+  # イメージ名
+  IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/gitpoke
+
+jobs:
+  # ============================================================================
+  # ビルドとデプロイ
+  # ============================================================================
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    
+    # 権限設定（Workload Identity用）
+    permissions:
+      contents: read
+      id-token: write
+    
+    steps:
+      # リポジトリをチェックアウト
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # 環境を判定（ステージング or 本番）
+      - name: Set environment
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            echo "ENVIRONMENT=production" >> $GITHUB_ENV
+            echo "SERVICE_NAME_SUFFIX=" >> $GITHUB_ENV
+          else
+            echo "ENVIRONMENT=staging" >> $GITHUB_ENV
+            echo "SERVICE_NAME_SUFFIX=-staging" >> $GITHUB_ENV
+          fi
+      
+      # Google Cloud認証（Workload Identity Federation）
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+      
+      # gcloud CLIを設定
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+      
+      # Docker認証（GCR）
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker
+      
+      # Dockerイメージをビルド
+      - name: Build Docker image
+        run: |
+          docker build \
+            --tag ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --tag ${{ env.IMAGE_NAME }}:latest \
+            --build-arg RUST_VERSION=1.75 \
+            .
+      
+      # 本番環境の場合はバージョンタグも付与
+      - name: Tag production image
+        if: env.ENVIRONMENT == 'production'
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.IMAGE_NAME }}:$VERSION
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.IMAGE_NAME }}:production
+      
+      # Dockerイメージをプッシュ
+      - name: Push Docker image
+        run: |
+          docker push ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.IMAGE_NAME }}:latest
+          
+          if [[ "${{ env.ENVIRONMENT }}" == "production" ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+            docker push ${{ env.IMAGE_NAME }}:$VERSION
+            docker push ${{ env.IMAGE_NAME }}:production
+          fi
+      
+      # Cloud Runにデプロイ
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }}${{ env.SERVICE_NAME_SUFFIX }} \
+            --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --timeout 30 \
+            --concurrency 1000 \
+            --cpu 1 \
+            --memory 512Mi \
+            --max-instances 100 \
+            --min-instances 0 \
+            --service-account ${{ secrets.CLOUD_RUN_SERVICE_ACCOUNT }} \
+            --set-env-vars "ENVIRONMENT=${{ env.ENVIRONMENT }}" \
+            --set-env-vars "GITHUB_APP_ID=${{ secrets.GITHUB_APP_ID }}" \
+            --set-env-vars "REDIS_URL=${{ secrets.REDIS_URL }}" \
+            --set-env-vars "FIRESTORE_PROJECT_ID=${{ env.GCP_PROJECT_ID }}" \
+            --set-env-vars "STORAGE_BUCKET=${{ secrets.STORAGE_BUCKET }}" \
+            --set-secrets "GITHUB_APP_PRIVATE_KEY=github-app-private-key:latest" \
+            --set-secrets "GITHUB_WEBHOOK_SECRET=github-webhook-secret:latest"
+      
+      # サービスURLを取得して表示
+      - name: Get service URL
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }}${{ env.SERVICE_NAME_SUFFIX }} \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --format 'value(status.url)')
+          echo "Service deployed to: $SERVICE_URL"
+          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
+      
+      # ヘルスチェック
+      - name: Health check
+        run: |
+          echo "Waiting for service to be ready..."
+          sleep 10
+          
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.SERVICE_URL }}/health)
+          if [ $response -eq 200 ]; then
+            echo "Health check passed!"
+          else
+            echo "Health check failed with status: $response"
+            exit 1
+          fi
+      
+      # デプロイ完了通知（Slack等への通知を追加可能）
+      - name: Deployment notification
+        run: |
+          echo "Successfully deployed to ${{ env.ENVIRONMENT }} environment"
+          echo "URL: ${{ env.SERVICE_URL }}"
+          echo "Commit: ${{ github.sha }}"

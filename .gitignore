@@ -1,0 +1,56 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo
+# Remove Cargo.lock from gitignore if creating an executable, leave it for libraries
+# Since this is a binary project, we want to commit Cargo.lock
+# Cargo.lock
+
+# Backup files
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+*.iml
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Coverage
+*.profraw
+*.profdata
+/coverage/
+
+# Benchmark results
+/target/criterion/
+
+# Build artifacts
+/dist/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Debug files
+*.dSYM/
+
+# GCP credentials (if stored locally)
+*.json
+!package.json
+!pcheck.config.json
+
+# Archive folder (if used)
+/archive/

@@ -1,0 +1,34 @@
+[build]
+# Enable incremental compilation
+incremental = true
+
+# [target.x86_64-unknown-linux-gnu]
+# # Use lld linker for faster linking on Linux
+# linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.x86_64-apple-darwin]
+# Faster linking on macOS
+rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+
+[target.aarch64-apple-darwin]
+# Faster linking on Apple Silicon
+rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/zld"]
+
+# Cargo profile settings
+[profile.dev]
+# Faster compile times for development
+opt-level = 0
+debug = true
+
+[profile.release]
+# Maximum optimization for production
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.bench]
+# Optimization for benchmarks
+opt-level = 3
+debug = false

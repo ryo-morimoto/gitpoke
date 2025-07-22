@@ -1,0 +1,44 @@
+# Git
+.git/
+.gitignore
+
+# Rust build artifacts
+target/
+Cargo.lock
+
+# Documentation
+docs/
+*.md
+
+# Development files
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CI/CD
+.github/
+
+# Testing
+test/
+benches/
+
+# Coverage
+*.profraw
+*.profdata
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Archive
+archive/

@@ -1,0 +1,175 @@
+# GitHub Actions CI設定
+#
+# このワークフローは以下を実行：
+# - Rustのビルドとテスト
+# - コードフォーマットチェック（rustfmt）
+# - Lintチェック（clippy）
+# - セキュリティ監査（cargo-audit）
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ============================================================================
+  # テストジョブ
+  # ============================================================================
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [stable, beta]
+    
+    steps:
+      # リポジトリをチェックアウト
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # Rustツールチェインをインストール
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt, clippy
+      
+      # Rustのキャッシュを設定（ビルド時間短縮）
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      
+      # 依存関係をビルド
+      - name: Build dependencies
+        run: cargo build --verbose
+      
+      # テストを実行
+      - name: Run tests
+        run: cargo test --verbose --all-features
+      
+      # ドキュメントのビルド確認
+      - name: Build documentation
+        run: cargo doc --no-deps --all-features
+
+  # ============================================================================
+  # フォーマットチェック
+  # ============================================================================
+  fmt:
+    name: Format Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt
+      
+      # rustfmtでフォーマットチェック
+      - name: Check formatting
+        run: cargo fmt -- --check
+
+  # ============================================================================
+  # Clippyによるlintチェック
+  # ============================================================================
+  clippy:
+    name: Clippy Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+      
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+      
+      # Clippyでlintチェック（警告をエラーとして扱う）
+      - name: Run clippy
+        run: cargo clippy --all-features -- -D warnings
+
+  # ============================================================================
+  # セキュリティ監査
+  # ============================================================================
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # cargo-auditでセキュリティ脆弱性をチェック
+      - name: Run security audit
+        uses: rustsec/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================================
+  # カバレッジ測定（オプション）
+  # ============================================================================
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+      
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+      
+      # tarpaulinでカバレッジを測定
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin
+      
+      - name: Generate coverage
+        run: cargo tarpaulin --out Xml --all-features
+      
+      # Codecovにアップロード（要設定）
+      # - name: Upload coverage to Codecov
+      #   uses: codecov/codecov-action@v3
+      #   with:
+      #     files: ./cobertura.xml
+      #     flags: unittests
+      #     name: codecov-umbrella
+      #     fail_ci_if_error: false
+
+  # ============================================================================
+  # ビルド成功の確認（全ジョブの完了待ち）
+  # ============================================================================
+  ci-success:
+    name: CI Success
+    if: ${{ success() }}
+    needs:
+      - test
+      - fmt
+      - clippy
+      - security-audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: CI Success
+        run: echo "All CI checks passed!"
