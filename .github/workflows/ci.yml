@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        rust: [stable, beta]
+        rust: [1.88.0, stable]
     
     steps:
       # リポジトリをチェックアウト

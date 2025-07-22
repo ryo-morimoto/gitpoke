@@ -1,8 +1,8 @@
 [package]
 name = "gitpoke"
 version = "0.1.0"
-edition = "2021"
-authors = ["Ryo Morimoto <your.email@example.com>"]
+edition = "2024"
+authors = ["Ryo Morimoto <ryo.morimoto.dev@gmail.com>"]
 description = "GitHub活動状況の可視化とリマインダーサービス"
 license = "MIT"
 repository = "https://github.com/ryo-morimoto/gitpoke"

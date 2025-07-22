@@ -6,7 +6,7 @@
 # ===============================================================================
 # Stage 1: cargo-chef でプランを作成
 # ===============================================================================
-FROM rust:1.75-slim AS planner
+FROM rust:1.88.0-slim AS planner
 WORKDIR /app
 
 # cargo-chef をインストール
@@ -43,7 +43,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 # ===============================================================================
 # Stage 3: アプリケーションのビルド
 # ===============================================================================
-FROM rust:1.75-slim AS builder
+FROM rust:1.88.0-slim AS builder
 WORKDIR /app
 
 # ビルドに必要なパッケージをインストール
@@ -77,6 +77,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
     tzdata \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # 非rootユーザーを作成（セキュリティのため）

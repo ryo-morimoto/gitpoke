@@ -4,7 +4,8 @@
 
 # Rust build artifacts
 target/
-Cargo.lock
+# Don't ignore Cargo.lock for binary projects (ensures reproducible builds)
+# Cargo.lock
 
 # Documentation
 docs/
